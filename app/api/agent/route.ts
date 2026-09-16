@@ -4,10 +4,18 @@ import {
   readAgentSettings,
   writeAgentSettings,
 } from "@/lib/agent-store";
+import { requireAdminSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
+function unauthorized() {
+  return NextResponse.json({ error: "Требуется вход" }, { status: 401 });
+}
+
 export async function GET() {
+  const session = await requireAdminSession();
+  if (!session) return unauthorized();
+
   const settings = readAgentSettings();
   return NextResponse.json({
     settings,
@@ -16,6 +24,9 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const session = await requireAdminSession();
+  if (!session) return unauthorized();
+
   try {
     const body = (await request.json()) as {
       prompt?: unknown;
@@ -48,9 +59,10 @@ export async function PUT(request: Request) {
       model: body.model,
     });
 
+    console.info("[api] Agent settings saved");
     return NextResponse.json({ settings, models: AVAILABLE_MODELS });
   } catch (err) {
-    console.error("PUT /api/agent:", err);
+    console.error("[api] PUT /api/agent failed:", err);
     return NextResponse.json(
       { error: "Не удалось сохранить настройки" },
       { status: 500 },

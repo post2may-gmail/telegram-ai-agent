@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { IconChat, IconFile, IconHistory } from "./chrome";
+import { ThemeToggle } from "./theme-toggle";
 import {
   btnPrimary,
   btnSecondary,
@@ -47,6 +48,9 @@ export default function Home() {
         className="home-hero"
       >
         <div>
+          <div style={{ marginBottom: space.md }}>
+            <ThemeToggle />
+          </div>
           <p
             style={{
               margin: 0,
@@ -82,7 +86,7 @@ export default function Home() {
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: space.sm }}>
             <Link href="/admin" style={btnPrimary} data-cta="true">
-              Открыть админку
+              Войти в админку
             </Link>
             <a href="#how" style={btnSecondary}>
               Как запустить

@@ -38,12 +38,16 @@ enf.local            # секреты, НЕ коммитить
 
 ```
 API_GPT <ключ>
-TOKEN TELEGRAM <токен>
+TOKEN_TELEGRAM <токен>
+ADMIN_LOGIN <логин>
+ADMIN_PASSWORD <пароль>
 ```
 
 - Не читать, не печатать, не цитировать содержимое `enf.local` в чате, логах, ошибках API и коммитах.
 - Не класть ключи в код, `data/agent.json`, клиентский бандл, URL и ответы `/api/*`.
 - Клиенту отдавать только безопасные тексты ошибок («Не удалось сохранить настройки»), детали — в лог сервера.
+- Админка (`/admin`) и `/api/agent` закрыты сессией после логина; логин/пароль только из `enf.local`.
+- На Vercel те же ключи задаются как Environment Variables: `API_GPT`, `TOKEN_TELEGRAM`, `ADMIN_LOGIN`, `ADMIN_PASSWORD`.
 - Файл уже в `.gitignore`. Не предлагать перейти на `.env`, пока явно не попросят.
 
 ## Данные и поведение
@@ -64,16 +68,18 @@ TOKEN TELEGRAM <токен>
 |---|---|
 | `bot/index.ts` | `[bot]` |
 | `app/api/agent/route.ts` | `[api]` |
+| `app/api/auth/route.ts` | `[api]` |
 | `lib/openai.ts` | `[openai]` |
 | `lib/agent-store.ts` | `[store]` |
 | `lib/env.ts` | `[env]` |
+| `lib/auth.ts` | `[auth]` |
 
 Правила:
 
 - **info** — жизненный цикл: старт бота, `@username`, успешное сохранение настроек.
 - **error** — любой `catch` и `bot.catch`: сообщение + объект ошибки. Не глотать исключения.
 - **warn** — деградация без падения (битый `agent.json` → дефолты).
-- Не логировать: `API_GPT`, `TOKEN TELEGRAM`, содержимое `enf.local`, сырое тело запросов с секретами, полные тексты пользователя и историю чата.
+- Не логировать: `API_GPT`, `TOKEN_TELEGRAM`, `ADMIN_LOGIN`, `ADMIN_PASSWORD`, содержимое `enf.local`, сырое тело запросов с секретами, полные тексты пользователя и историю чата.
 - В клиентских компонентах (`"use client"`) не писать `console.*` в прод-пути; ошибки показывать в UI (`error` / `message` state), как на `/admin`.
 - Старт бота при отсутствии секретов: `console.error` и `process.exit(1)` — не оставлять процесс «молча живым».
 

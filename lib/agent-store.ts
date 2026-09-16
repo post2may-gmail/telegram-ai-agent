@@ -16,40 +16,75 @@ export type AgentSettings = {
   model: AgentModel;
 };
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const SETTINGS_PATH = path.join(DATA_DIR, "agent.json");
-
 const DEFAULT_SETTINGS: AgentSettings = {
   prompt:
     "Ты полезный ассистент в Telegram. Отвечай кратко и по делу на языке пользователя.",
   model: "gpt-4o-mini",
 };
 
+function dataDir(): string {
+  // На Vercel файловая система приложения read-only; пишем в /tmp.
+  if (process.env.VERCEL) {
+    return path.join("/tmp", "agent-data");
+  }
+  return path.join(process.cwd(), "data");
+}
+
+function settingsPath(): string {
+  return path.join(dataDir(), "agent.json");
+}
+
+function bundledSettingsPath(): string {
+  return path.join(process.cwd(), "data", "agent.json");
+}
+
 function ensureDataDir() {
-  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+  const dir = dataDir();
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+}
+
+function normalize(parsed: Partial<AgentSettings>): AgentSettings {
+  return {
+    prompt:
+      typeof parsed.prompt === "string" && parsed.prompt.trim()
+        ? parsed.prompt
+        : DEFAULT_SETTINGS.prompt,
+    model:
+      typeof parsed.model === "string" && parsed.model.trim()
+        ? parsed.model
+        : DEFAULT_SETTINGS.model,
+  };
 }
 
 export function readAgentSettings(): AgentSettings {
   ensureDataDir();
-  if (!existsSync(SETTINGS_PATH)) {
+  const livePath = settingsPath();
+
+  if (!existsSync(livePath) && process.env.VERCEL) {
+    const bundled = bundledSettingsPath();
+    if (existsSync(bundled)) {
+      try {
+        const seeded = normalize(
+          JSON.parse(readFileSync(bundled, "utf8")) as Partial<AgentSettings>,
+        );
+        writeFileSync(livePath, JSON.stringify(seeded, null, 2), "utf8");
+        return seeded;
+      } catch (err) {
+        console.warn("[store] Не удалось прочитать bundled agent.json:", err);
+      }
+    }
+  }
+
+  if (!existsSync(livePath)) {
     writeAgentSettings(DEFAULT_SETTINGS);
     return { ...DEFAULT_SETTINGS };
   }
 
   try {
-    const raw = readFileSync(SETTINGS_PATH, "utf8");
-    const parsed = JSON.parse(raw) as Partial<AgentSettings>;
-    return {
-      prompt:
-        typeof parsed.prompt === "string" && parsed.prompt.trim()
-          ? parsed.prompt
-          : DEFAULT_SETTINGS.prompt,
-      model:
-        typeof parsed.model === "string" && parsed.model.trim()
-          ? parsed.model
-          : DEFAULT_SETTINGS.model,
-    };
-  } catch {
+    const raw = readFileSync(livePath, "utf8");
+    return normalize(JSON.parse(raw) as Partial<AgentSettings>);
+  } catch (err) {
+    console.warn("[store] Битый agent.json, используем дефолты:", err);
     return { ...DEFAULT_SETTINGS };
   }
 }
@@ -60,6 +95,6 @@ export function writeAgentSettings(settings: AgentSettings): AgentSettings {
     prompt: settings.prompt.trim() || DEFAULT_SETTINGS.prompt,
     model: settings.model.trim() || DEFAULT_SETTINGS.model,
   };
-  writeFileSync(SETTINGS_PATH, JSON.stringify(next, null, 2), "utf8");
+  writeFileSync(settingsPath(), JSON.stringify(next, null, 2), "utf8");
   return next;
 }

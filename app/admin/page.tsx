@@ -1,8 +1,16 @@
 "use client";
 
-import { FormEvent, useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   btnPrimary,
+  btnSecondary,
   card,
   code,
   color,
@@ -15,11 +23,19 @@ type AgentSettings = {
   model: string;
 };
 
+type AuthState = "checking" | "guest" | "authed";
+
 export default function AdminPage() {
+  const [auth, setAuth] = useState<AuthState>("checking");
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loggingIn, setLoggingIn] = useState(false);
+
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState("gpt-4o-mini");
   const [models, setModels] = useState<string[]>(["gpt-4o-mini"]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,36 +43,57 @@ export default function AdminPage() {
   const errorRef = useRef<HTMLDivElement>(null);
   const promptId = useId();
   const modelId = useId();
+  const loginId = useId();
+  const passwordId = useId();
   const promptHintId = useId();
   const promptErrorId = useId();
   const modelHintId = useId();
   const formErrorId = useId();
 
+  async function loadSettings() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/agent");
+      if (res.status === 401) {
+        setAuth("guest");
+        return;
+      }
+      if (!res.ok) throw new Error("Не удалось загрузить настройки");
+      const data = (await res.json()) as {
+        settings: AgentSettings;
+        models: string[];
+      };
+      setPrompt(data.settings.prompt);
+      setModel(data.settings.model);
+      setModels(data.models.length ? data.models : [data.settings.model]);
+      setAuth("authed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка загрузки");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
+    async function checkAuth() {
       try {
-        const res = await fetch("/api/agent");
-        if (!res.ok) throw new Error("Не удалось загрузить настройки");
-        const data = (await res.json()) as {
-          settings: AgentSettings;
-          models: string[];
-        };
+        const res = await fetch("/api/auth");
         if (cancelled) return;
-        setPrompt(data.settings.prompt);
-        setModel(data.settings.model);
-        setModels(data.models.length ? data.models : [data.settings.model]);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Ошибка загрузки");
+        if (!res.ok) {
+          setAuth("guest");
+          return;
         }
-      } finally {
-        if (!cancelled) setLoading(false);
+        setAuth("authed");
+        await loadSettings();
+      } catch {
+        if (!cancelled) setAuth("guest");
       }
     }
 
-    load();
+    checkAuth();
     return () => {
       cancelled = true;
     };
@@ -67,6 +104,44 @@ export default function AdminPage() {
       errorRef.current?.focus();
     }
   }, [error]);
+
+  async function onLogin(e: FormEvent) {
+    e.preventDefault();
+    setLoggingIn(true);
+    setLoginError(null);
+
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login, password }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setLoginError(data.error || "Неверный логин или пароль");
+        return;
+      }
+      setPassword("");
+      setAuth("authed");
+      await loadSettings();
+    } catch {
+      setLoginError("Не удалось выполнить вход");
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+
+  async function onLogout() {
+    setMessage(null);
+    setError(null);
+    try {
+      await fetch("/api/auth", { method: "DELETE" });
+    } finally {
+      setAuth("guest");
+      setPrompt("");
+      setPassword("");
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -87,6 +162,10 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, model }),
       });
+      if (res.status === 401) {
+        setAuth("guest");
+        return;
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Не удалось сохранить настройки");
 
@@ -107,22 +186,101 @@ export default function AdminPage() {
     .filter(Boolean)
     .join(" ");
 
+  if (auth === "checking") {
+    return (
+      <main id="main" style={main} aria-busy="true">
+        <h1 style={titleStyle}>Админка агента</h1>
+        <p style={{ color: color.mutedForeground, marginTop: 0 }}>Проверка входа…</p>
+      </main>
+    );
+  }
+
+  if (auth === "guest") {
+    return (
+      <main id="main" style={main}>
+        <h1 style={titleStyle}>Вход в админку</h1>
+        <p style={{ margin: "0 0 24px", color: color.mutedForeground, maxWidth: 520 }}>
+          Логин и пароль задаются в <code style={code}>enf.local</code> (
+          <code style={code}>ADMIN_LOGIN</code>, <code style={code}>ADMIN_PASSWORD</code>).
+        </p>
+
+        <form onSubmit={onLogin} style={{ ...card, maxWidth: 420 }} noValidate>
+          <div style={{ display: "flex", flexDirection: "column", gap: space.lg }}>
+            <div>
+              <label htmlFor={loginId} style={labelStyle}>
+                Логин
+              </label>
+              <input
+                id={loginId}
+                type="text"
+                autoComplete="username"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+                required
+                style={fieldStyle}
+              />
+            </div>
+            <div>
+              <label htmlFor={passwordId} style={labelStyle}>
+                Пароль
+              </label>
+              <input
+                id={passwordId}
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={fieldStyle}
+              />
+            </div>
+            {loginError && (
+              <p role="alert" style={fieldError}>
+                {loginError}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={loggingIn}
+              aria-busy={loggingIn}
+              style={{ ...btnPrimary, alignSelf: "flex-start" }}
+              data-cta="true"
+            >
+              {loggingIn ? "Вход…" : "Войти"}
+            </button>
+          </div>
+        </form>
+      </main>
+    );
+  }
+
   if (loading) {
     return (
       <main id="main" style={main} aria-busy="true">
         <h1 style={titleStyle}>Админка агента</h1>
         <p style={{ color: color.mutedForeground, marginTop: 0 }}>Загрузка…</p>
-        <div
-          style={{ ...card, minHeight: 360 }}
-          aria-hidden="true"
-        />
+        <div style={{ ...card, minHeight: 360 }} aria-hidden="true" />
       </main>
     );
   }
 
   return (
     <main id="main" style={main}>
-      <h1 style={titleStyle}>Админка агента</h1>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: space.md,
+          marginBottom: 8,
+        }}
+      >
+        <h1 style={{ ...titleStyle, margin: 0 }}>Админка агента</h1>
+        <button type="button" onClick={onLogout} style={btnSecondary}>
+          Выйти
+        </button>
+      </div>
       <p style={{ margin: "0 0 24px", color: color.mutedForeground, maxWidth: 640 }}>
         Промпт и модель хранятся в <code style={code}>data/agent.json</code>.
         Telegram-бот читает файл при каждом ответе — перезапуск не нужен.

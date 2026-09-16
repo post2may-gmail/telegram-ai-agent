@@ -1,22 +1,22 @@
 import type { CSSProperties } from "react";
 
 export const color = {
-  primary: "#7C3AED",
-  onPrimary: "#FFFFFF",
-  secondary: "#A78BFA",
-  accent: "#0891B2",
-  onAccent: "#000000",
-  background: "#FAF5FF",
-  foreground: "#1E1B4B",
-  card: "#FFFFFF",
-  muted: "#ECEEF9",
-  mutedForeground: "#475569",
-  border: "#DDD6FE",
-  destructive: "#DC2626",
-  onDestructive: "#FFFFFF",
-  success: "#047857",
-  successBg: "#ECFDF5",
-  ring: "#7C3AED",
+  primary: "var(--color-primary)",
+  onPrimary: "var(--color-on-primary)",
+  secondary: "var(--color-secondary)",
+  accent: "var(--color-accent)",
+  onAccent: "var(--color-on-accent)",
+  background: "var(--color-background)",
+  foreground: "var(--color-foreground)",
+  card: "var(--color-card)",
+  muted: "var(--color-muted)",
+  mutedForeground: "var(--color-muted-foreground)",
+  border: "var(--color-border)",
+  destructive: "var(--color-destructive)",
+  onDestructive: "var(--color-on-destructive)",
+  success: "var(--color-success)",
+  successBg: "var(--color-success-bg)",
+  ring: "var(--color-ring)",
 } as const;
 
 export const space = {
@@ -34,8 +34,8 @@ export const font = {
 } as const;
 
 export const shadow = {
-  sm: "0 1px 2px rgba(30, 27, 75, 0.06)",
-  md: "0 4px 6px rgba(30, 27, 75, 0.08)",
+  sm: "var(--shadow-sm)",
+  md: "var(--shadow-md)",
 } as const;
 
 export const shell: CSSProperties = {
