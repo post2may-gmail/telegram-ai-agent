@@ -200,8 +200,11 @@ export default function AdminPage() {
       <main id="main" style={main}>
         <h1 style={titleStyle}>Вход в админку</h1>
         <p style={{ margin: "0 0 24px", color: color.mutedForeground, maxWidth: 520 }}>
-          Логин и пароль задаются в <code style={code}>enf.local</code> (
-          <code style={code}>ADMIN_LOGIN</code>, <code style={code}>ADMIN_PASSWORD</code>).
+          Логин и пароль — из{" "}
+          <code style={code}>.env.local</code> на сервере (или{" "}
+          <code style={code}>enf.local</code> локально):{" "}
+          <code style={code}>ADMIN_LOGIN</code>,{" "}
+          <code style={code}>ADMIN_PASSWORD</code>.
         </p>
 
         <form onSubmit={onLogin} style={{ ...card, maxWidth: 420 }} noValidate>
