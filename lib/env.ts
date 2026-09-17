@@ -21,8 +21,25 @@ export type DeployConfig = {
 let cached: AppSecrets | null = null;
 let cachedAdmin: AdminAuthSecrets | null = null;
 
+function findProjectRoot(): string {
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    if (existsSync(path.join(dir, "package.json"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // Beget: типичный путь приложения
+  if (existsSync("/var/www/html/package.json")) return "/var/www/html";
+  return process.cwd();
+}
+
 function loadEnfFile(): string | null {
+  const root = findProjectRoot();
   const candidates = [
+    path.join(root, ".env.local"),
+    path.join(root, "enf.local"),
+    path.join(root, "env.local"),
     path.join(process.cwd(), ".env.local"),
     path.join(process.cwd(), "enf.local"),
     path.join(process.cwd(), "env.local"),
@@ -33,6 +50,7 @@ function loadEnfFile(): string | null {
       return raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
     }
   }
+  console.error("[env] Файл секретов не найден. Искали в:", candidates.join(", "));
   return null;
 }
 
