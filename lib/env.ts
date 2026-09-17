@@ -8,12 +8,18 @@ export type AppSecrets = {
   adminPassword: string;
 };
 
+export type AdminAuthSecrets = {
+  adminLogin: string;
+  adminPassword: string;
+};
+
 export type DeployConfig = {
   siteUrl: string;
   webhookSecret: string;
 };
 
 let cached: AppSecrets | null = null;
+let cachedAdmin: AdminAuthSecrets | null = null;
 
 function loadEnfFile(): string | null {
   const candidates = [
@@ -24,90 +30,112 @@ function loadEnfFile(): string | null {
   for (const filePath of candidates) {
     if (existsSync(filePath)) {
       const raw = readFileSync(filePath, "utf8");
-      // Убираем BOM, если файл сохранили из Windows-редактора
       return raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
     }
   }
   return null;
 }
 
+function stripQuotes(value: string): string {
+  const v = value.trim();
+  if (
+    (v.startsWith('"') && v.endsWith('"')) ||
+    (v.startsWith("'") && v.endsWith("'"))
+  ) {
+    return v.slice(1, -1);
+  }
+  return v;
+}
+
 function parseKeyValueFile(raw: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)) {
     if (line.startsWith("#")) continue;
-    // Формат enf.local: KEY value
-    for (const key of [
-      "API_GPT",
-      "TOKEN_TELEGRAM",
-      "ADMIN_LOGIN",
-      "ADMIN_PASSWORD",
-      "SITE_URL",
-      "TELEGRAM_WEBHOOK_SECRET",
-    ]) {
-      if (line.startsWith(`${key} `)) {
-        out[key] = line.slice(key.length + 1).trim();
-      }
-    }
-    // Формат .env: KEY=value
+
     const eq = line.indexOf("=");
     if (eq > 0) {
       const k = line.slice(0, eq).trim();
-      const v = line.slice(eq + 1).trim();
-      if (k && !(k in out)) out[k] = v;
+      const v = stripQuotes(line.slice(eq + 1).trim());
+      if (k) out[k] = v;
+      continue;
+    }
+
+    // Формат enf.local: KEY value
+    const sp = line.indexOf(" ");
+    if (sp > 0) {
+      const k = line.slice(0, sp).trim();
+      const v = stripQuotes(line.slice(sp + 1).trim());
+      if (k) out[k] = v;
     }
   }
   return out;
 }
 
-function loadSecrets(): AppSecrets {
+function readMerged(): Record<string, string> {
   const raw = loadEnfFile();
   const fromFile = raw ? parseKeyValueFile(raw) : {};
+  return {
+    API_GPT: (process.env.API_GPT || fromFile.API_GPT || "").trim(),
+    TOKEN_TELEGRAM: (
+      process.env.TOKEN_TELEGRAM ||
+      fromFile.TOKEN_TELEGRAM ||
+      ""
+    ).trim(),
+    ADMIN_LOGIN: (process.env.ADMIN_LOGIN || fromFile.ADMIN_LOGIN || "").trim(),
+    ADMIN_PASSWORD: (
+      process.env.ADMIN_PASSWORD ||
+      fromFile.ADMIN_PASSWORD ||
+      ""
+    ).trim(),
+    SITE_URL: (process.env.SITE_URL || fromFile.SITE_URL || "").trim(),
+    TELEGRAM_WEBHOOK_SECRET: (
+      process.env.TELEGRAM_WEBHOOK_SECRET ||
+      fromFile.TELEGRAM_WEBHOOK_SECRET ||
+      ""
+    ).trim(),
+  };
+}
 
-  const apiGpt = (process.env.API_GPT || fromFile.API_GPT || "").trim();
-  const telegramToken = (
-    process.env.TOKEN_TELEGRAM ||
-    fromFile.TOKEN_TELEGRAM ||
-    ""
-  ).trim();
-  const adminLogin = (
-    process.env.ADMIN_LOGIN ||
-    fromFile.ADMIN_LOGIN ||
-    ""
-  ).trim();
-  const adminPassword = (
-    process.env.ADMIN_PASSWORD ||
-    fromFile.ADMIN_PASSWORD ||
-    ""
-  ).trim();
+/** Только для входа в админку — не требует API_GPT / TOKEN_TELEGRAM. */
+export function getAdminAuthSecrets(): AdminAuthSecrets {
+  if (cachedAdmin) return cachedAdmin;
 
-  if (!apiGpt) {
-    console.error("[env] Не найден API_GPT (enf.local / .env.local или env)");
-    throw new Error("Не найден API_GPT (enf.local / .env.local или env)");
+  const merged = readMerged();
+  if (!merged.ADMIN_LOGIN) {
+    console.error("[env] Не найден ADMIN_LOGIN");
+    throw new Error("Не найден ADMIN_LOGIN");
   }
-  if (!telegramToken) {
-    console.error(
-      "[env] Не найден TOKEN_TELEGRAM (enf.local / .env.local или env)",
-    );
-    throw new Error(
-      "Не найден TOKEN_TELEGRAM (enf.local / .env.local или env)",
-    );
-  }
-  if (!adminLogin) {
-    console.error(
-      "[env] Не найден ADMIN_LOGIN (enf.local / .env.local или env)",
-    );
-    throw new Error("Не найден ADMIN_LOGIN (enf.local / .env.local или env)");
-  }
-  if (!adminPassword) {
-    console.error(
-      "[env] Не найден ADMIN_PASSWORD (enf.local / .env.local или env)",
-    );
-    throw new Error(
-      "Не найден ADMIN_PASSWORD (enf.local / .env.local или env)",
-    );
+  if (!merged.ADMIN_PASSWORD) {
+    console.error("[env] Не найден ADMIN_PASSWORD");
+    throw new Error("Не найден ADMIN_PASSWORD");
   }
 
-  return { apiGpt, telegramToken, adminLogin, adminPassword };
+  cachedAdmin = {
+    adminLogin: merged.ADMIN_LOGIN,
+    adminPassword: merged.ADMIN_PASSWORD,
+  };
+  return cachedAdmin;
+}
+
+function loadSecrets(): AppSecrets {
+  const merged = readMerged();
+  const admin = getAdminAuthSecrets();
+
+  if (!merged.API_GPT) {
+    console.error("[env] Не найден API_GPT");
+    throw new Error("Не найден API_GPT");
+  }
+  if (!merged.TOKEN_TELEGRAM) {
+    console.error("[env] Не найден TOKEN_TELEGRAM");
+    throw new Error("Не найден TOKEN_TELEGRAM");
+  }
+
+  return {
+    apiGpt: merged.API_GPT,
+    telegramToken: merged.TOKEN_TELEGRAM,
+    adminLogin: admin.adminLogin,
+    adminPassword: admin.adminPassword,
+  };
 }
 
 export function getSecrets(): AppSecrets {
@@ -120,19 +148,10 @@ function normalizeSiteUrl(url: string): string {
   return url.trim().replace(/\/+$/, "");
 }
 
-/** Прод-настройки (process.env / .env.local / enf.local / env.local). */
 export function getDeployConfig(): DeployConfig {
-  const raw = loadEnfFile();
-  const fromFile = raw ? parseKeyValueFile(raw) : {};
-
+  const merged = readMerged();
   return {
-    siteUrl: normalizeSiteUrl(
-      process.env.SITE_URL || fromFile.SITE_URL || "",
-    ),
-    webhookSecret: (
-      process.env.TELEGRAM_WEBHOOK_SECRET ||
-      fromFile.TELEGRAM_WEBHOOK_SECRET ||
-      ""
-    ).trim(),
+    siteUrl: normalizeSiteUrl(merged.SITE_URL),
+    webhookSecret: merged.TELEGRAM_WEBHOOK_SECRET,
   };
 }

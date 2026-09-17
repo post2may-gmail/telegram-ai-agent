@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
-import { getSecrets } from "./env";
+import { getAdminAuthSecrets } from "./env";
 
 export const ADMIN_SESSION_COOKIE = "admin_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -18,12 +18,14 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 function sign(payloadB64: string): string {
-  const { adminPassword } = getSecrets();
-  return createHmac("sha256", adminPassword).update(payloadB64).digest("base64url");
+  const { adminPassword } = getAdminAuthSecrets();
+  return createHmac("sha256", adminPassword)
+    .update(payloadB64)
+    .digest("base64url");
 }
 
 export function verifyCredentials(login: string, password: string): boolean {
-  const secrets = getSecrets();
+  const secrets = getAdminAuthSecrets();
   return (
     safeEqual(login, secrets.adminLogin) &&
     safeEqual(password, secrets.adminPassword)
@@ -61,7 +63,7 @@ export function verifySessionToken(token: string): SessionPayload | null {
     ) {
       return null;
     }
-    const { adminLogin } = getSecrets();
+    const { adminLogin } = getAdminAuthSecrets();
     if (!safeEqual(payload.login, adminLogin)) return null;
     return payload;
   } catch {

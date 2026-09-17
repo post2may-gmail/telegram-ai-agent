@@ -51,7 +51,8 @@ export async function POST(request: Request) {
     console.info("[api] Admin login success");
     return response;
   } catch (err) {
-    console.error("[api] POST /api/auth/login failed:", err);
+    const message = err instanceof Error ? err.message : "unknown";
+    console.error("[api] POST /api/auth/login failed:", message, err);
     return NextResponse.json(
       { error: "Не удалось выполнить вход" },
       { status: 500 },
