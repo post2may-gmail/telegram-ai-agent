@@ -19,7 +19,6 @@ export type DeployConfig = {
 };
 
 let cached: AppSecrets | null = null;
-let cachedAdmin: AdminAuthSecrets | null = null;
 
 function findProjectRoot(): string {
   let dir = process.cwd();
@@ -114,10 +113,8 @@ function readMerged(): Record<string, string> {
   };
 }
 
-/** Только для входа в админку — не требует API_GPT / TOKEN_TELEGRAM. */
+/** Только для входа в админку — каждый раз читаем файл (без кэша). */
 export function getAdminAuthSecrets(): AdminAuthSecrets {
-  if (cachedAdmin) return cachedAdmin;
-
   const merged = readMerged();
   if (!merged.ADMIN_LOGIN) {
     console.error("[env] Не найден ADMIN_LOGIN");
@@ -128,11 +125,10 @@ export function getAdminAuthSecrets(): AdminAuthSecrets {
     throw new Error("Не найден ADMIN_PASSWORD");
   }
 
-  cachedAdmin = {
+  return {
     adminLogin: merged.ADMIN_LOGIN,
     adminPassword: merged.ADMIN_PASSWORD,
   };
-  return cachedAdmin;
 }
 
 function loadSecrets(): AppSecrets {
