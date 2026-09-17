@@ -8,6 +8,11 @@ export type AppSecrets = {
   adminPassword: string;
 };
 
+export type DeployConfig = {
+  siteUrl: string;
+  webhookSecret: string;
+};
+
 let cached: AppSecrets | null = null;
 
 function valueFromEnf(lines: string[], prefix: string): string {
@@ -77,4 +82,12 @@ export function getSecrets(): AppSecrets {
   if (cached) return cached;
   cached = loadSecrets();
   return cached;
+}
+
+/** Прод-настройки для Beget (из process.env / .env.local). */
+export function getDeployConfig(): DeployConfig {
+  return {
+    siteUrl: (process.env.SITE_URL || "").trim(),
+    webhookSecret: (process.env.TELEGRAM_WEBHOOK_SECRET || "").trim(),
+  };
 }
