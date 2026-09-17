@@ -91,25 +91,16 @@ function parseKeyValueFile(raw: string): Record<string, string> {
 function readMerged(): Record<string, string> {
   const raw = loadEnfFile();
   const fromFile = raw ? parseKeyValueFile(raw) : {};
+  // Файл (.env.local) важнее process.env: Next кэширует env при старте процесса.
+  const pick = (key: string) =>
+    (fromFile[key] || process.env[key] || "").trim();
   return {
-    API_GPT: (process.env.API_GPT || fromFile.API_GPT || "").trim(),
-    TOKEN_TELEGRAM: (
-      process.env.TOKEN_TELEGRAM ||
-      fromFile.TOKEN_TELEGRAM ||
-      ""
-    ).trim(),
-    ADMIN_LOGIN: (process.env.ADMIN_LOGIN || fromFile.ADMIN_LOGIN || "").trim(),
-    ADMIN_PASSWORD: (
-      process.env.ADMIN_PASSWORD ||
-      fromFile.ADMIN_PASSWORD ||
-      ""
-    ).trim(),
-    SITE_URL: (process.env.SITE_URL || fromFile.SITE_URL || "").trim(),
-    TELEGRAM_WEBHOOK_SECRET: (
-      process.env.TELEGRAM_WEBHOOK_SECRET ||
-      fromFile.TELEGRAM_WEBHOOK_SECRET ||
-      ""
-    ).trim(),
+    API_GPT: pick("API_GPT"),
+    TOKEN_TELEGRAM: pick("TOKEN_TELEGRAM"),
+    ADMIN_LOGIN: pick("ADMIN_LOGIN"),
+    ADMIN_PASSWORD: pick("ADMIN_PASSWORD"),
+    SITE_URL: pick("SITE_URL"),
+    TELEGRAM_WEBHOOK_SECRET: pick("TELEGRAM_WEBHOOK_SECRET"),
   };
 }
 
